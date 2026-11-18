@@ -1,6 +1,7 @@
 
 package com.Project.DocApproval.auth.security;
 
+import com.Project.DocApproval.config.requestRateLimiter.RateLimitFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -16,6 +17,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.config.Customizer;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 import java.util.List;
 @Configuration
 public class SecurityConfig {
@@ -66,12 +70,14 @@ public class SecurityConfig {
 
     http
         .cors(Customizer.withDefaults())
-        .csrf(csrf -> csrf.disable())
-        .formLogin(form -> form.disable())
-        .httpBasic(basic -> basic.disable())
+        .csrf(AbstractHttpConfigurer::disable)
+        .formLogin(AbstractHttpConfigurer::disable)
+        .httpBasic(AbstractHttpConfigurer::disable)
+
         .sessionManagement(session -> session
             .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         )
+
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(
                 "/api/auth/**",
@@ -79,16 +85,35 @@ public class SecurityConfig {
             ).permitAll()
             .anyRequest().authenticated()
         )
+
         .addFilterBefore(
             jwtAuthenticationFilter,
             UsernamePasswordAuthenticationFilter.class
+        )
+
+        .addFilterBefore(
+            rateLimitFilter,
+            JwtAuthenticationFilter.class
         );
 
     return http.build();
   }
-  private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  @Bean
+  public FilterRegistrationBean<RateLimitFilter>
+  rateLimitFilterRegistration(RateLimitFilter filter) {
 
-  public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    FilterRegistrationBean<RateLimitFilter> registration =
+        new FilterRegistrationBean<>(filter);
+
+    registration.setEnabled(false);
+
+    return registration;
+  }
+  private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final RateLimitFilter rateLimitFilter;
+
+  public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,RateLimitFilter rateLimitFilter) {
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    this.rateLimitFilter = rateLimitFilter;
   }
 }
